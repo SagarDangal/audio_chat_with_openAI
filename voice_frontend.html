@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-time Speech Recognition and Text-to-Speech</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        #startButton {
+            padding: 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: background-color 0.3s ease;
+        }
+
+        #startButton.listening {
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Audio only Chat</h1>
+    <button id="startButton">Start Continuous Recognition</button>
+    <p id="status"></p>
+
+    <script>
+        const startButton = document.getElementById('startButton');
+        const status = document.getElementById('status');
+        let ws;
+        let recognition;
+
+        function startRecognition() {
+            if ('webkitSpeechRecognition' in window) {
+                recognition = new webkitSpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = false;
+
+                recognition.onstart = () => {
+                    status.innerText = 'Speech recognition is on. Speak into the microphone.';
+                };
+
+                recognition.onresult = (event) => {
+                    let transcript = event.results[event.resultIndex][0].transcript;
+                    // stop text-to-speech
+                    window.speechSynthesis.cancel();
+                    ws.send(transcript);
+                };
+
+                recognition.onerror = (event) => {
+                    status.innerText = 'Speech recognition error: ' + event.error;
+                };
+
+                recognition.onend = () => {
+                    recognition.start();
+                };
+
+                recognition.start();
+            } else {
+                status.innerText = 'Your browser does not support Web Speech API.';
+            }
+        }
+
+        function speakText(text) {
+            let speech = new SpeechSynthesisUtterance(text);
+            window.speechSynthesis.speak(speech);
+        }
+
+        startButton.onclick = () => {
+            ws = new WebSocket('ws://127.0.0.1:8000/ws');
+            ws.onopen = () => {
+                startRecognition();
+            };
+            ws.onmessage = (event) => {
+                speakText(event.data);
+            };
+            ws.onerror = (event) => {
+                console.error('WebSocket error:', event);
+            };
+            ws.onclose = () => {
+                recognition.stop();
+                status.innerText = 'WebSocket disconnected.';
+            };
+        };
+    </script>
+</body>
+</html>
